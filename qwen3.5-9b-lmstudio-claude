@@ -1,0 +1,490 @@
+{%- set image_count = namespace(value=0) %}
+{%- set video_count = namespace(value=0) %}
+
+{#- =========================================================================
+   Qwen 3.5 / LM Studio / Claude Code
+   Template tolerante para Anthropic Messages + tool calling.
+   ========================================================================= -#}
+
+{%- macro render_content(content, do_vision_count=false, is_system_content=false) %}
+    {%- if content is string %}
+        {{- content }}
+
+    {%- elif content is mapping %}
+        {%- if content.type is defined and content.type == 'text' %}
+            {{- content.text if content.text is defined else '' }}
+
+        {%- elif content.type is defined
+               and (content.type == 'thinking' or content.type == 'redacted_thinking') %}
+            {{- '' }}
+
+        {%- elif content.type is defined and content.type == 'tool_result' %}
+            {{- '<tool_response>\n' }}
+            {%- if content.content is string %}
+                {{- content.content }}
+            {%- elif content.content is iterable and content.content is not mapping %}
+                {%- for result_item in content.content %}
+                    {%- if result_item is string %}
+                        {{- result_item }}
+                    {%- elif result_item is mapping
+                           and result_item.text is defined %}
+                        {{- result_item.text }}
+                    {%- else %}
+                        {{- result_item | tojson | safe }}
+                    {%- endif %}
+                {%- endfor %}
+            {%- elif content.content is defined and content.content is not none %}
+                {{- content.content | string }}
+            {%- endif %}
+            {{- '\n</tool_response>' }}
+
+        {%- elif content.type is defined and content.type == 'tool_use' %}
+            {#- Renderizado separadamente como <tool_call>. -#}
+            {{- '' }}
+
+        {%- elif (content.type is defined
+                  and (content.type == 'image' or content.type == 'image_url'))
+                 or 'image' in content
+                 or 'image_url' in content %}
+            {%- if is_system_content %}
+                {{- '[Image omitted from system instruction]' }}
+            {%- else %}
+                {%- if do_vision_count %}
+                    {%- set image_count.value = image_count.value + 1 %}
+                {%- endif %}
+                {%- if add_vision_id is defined and add_vision_id %}
+                    {{- 'Picture ' ~ image_count.value ~ ': ' }}
+                {%- endif %}
+                {{- '<|vision_start|><|image_pad|><|vision_end|>' }}
+            {%- endif %}
+
+        {%- elif (content.type is defined and content.type == 'video')
+                 or 'video' in content %}
+            {%- if is_system_content %}
+                {{- '[Video omitted from system instruction]' }}
+            {%- else %}
+                {%- if do_vision_count %}
+                    {%- set video_count.value = video_count.value + 1 %}
+                {%- endif %}
+                {%- if add_vision_id is defined and add_vision_id %}
+                    {{- 'Video ' ~ video_count.value ~ ': ' }}
+                {%- endif %}
+                {{- '<|vision_start|><|video_pad|><|vision_end|>' }}
+            {%- endif %}
+
+        {%- elif content.text is defined %}
+            {{- content.text }}
+
+        {%- elif content.content is defined and content.content is string %}
+            {{- content.content }}
+
+        {%- else %}
+            {{- content | tojson | safe }}
+        {%- endif %}
+
+    {%- elif content is iterable and content is not mapping %}
+        {%- for item in content %}
+            {%- if item is string %}
+                {{- item }}
+
+            {%- elif item is mapping
+                   and item.type is defined
+                   and item.type == 'text' %}
+                {{- item.text if item.text is defined else '' }}
+
+            {%- elif item is mapping
+                   and item.type is defined
+                   and (item.type == 'thinking'
+                        or item.type == 'redacted_thinking') %}
+                {{- '' }}
+
+            {%- elif item is mapping
+                   and item.type is defined
+                   and item.type == 'tool_result' %}
+                {{- '<tool_response>\n' }}
+                {%- if item.content is string %}
+                    {{- item.content }}
+                {%- elif item.content is iterable
+                       and item.content is not mapping %}
+                    {%- for result_item in item.content %}
+                        {%- if result_item is string %}
+                            {{- result_item }}
+                        {%- elif result_item is mapping
+                               and result_item.text is defined %}
+                            {{- result_item.text }}
+                        {%- else %}
+                            {{- result_item | tojson | safe }}
+                        {%- endif %}
+                    {%- endfor %}
+                {%- elif item.content is defined and item.content is not none %}
+                    {{- item.content | string }}
+                {%- endif %}
+                {{- '\n</tool_response>' }}
+
+            {%- elif item is mapping
+                   and item.type is defined
+                   and item.type == 'tool_use' %}
+                {#- Renderizado separadamente como <tool_call>. -#}
+                {{- '' }}
+
+            {%- elif item is mapping
+                   and (
+                       (item.type is defined
+                        and (item.type == 'image'
+                             or item.type == 'image_url'))
+                       or 'image' in item
+                       or 'image_url' in item
+                   ) %}
+                {%- if is_system_content %}
+                    {{- '[Image omitted from system instruction]' }}
+                {%- else %}
+                    {%- if do_vision_count %}
+                        {%- set image_count.value = image_count.value + 1 %}
+                    {%- endif %}
+                    {%- if add_vision_id is defined and add_vision_id %}
+                        {{- 'Picture ' ~ image_count.value ~ ': ' }}
+                    {%- endif %}
+                    {{- '<|vision_start|><|image_pad|><|vision_end|>' }}
+                {%- endif %}
+
+            {%- elif item is mapping
+                   and (
+                       (item.type is defined and item.type == 'video')
+                       or 'video' in item
+                   ) %}
+                {%- if is_system_content %}
+                    {{- '[Video omitted from system instruction]' }}
+                {%- else %}
+                    {%- if do_vision_count %}
+                        {%- set video_count.value = video_count.value + 1 %}
+                    {%- endif %}
+                    {%- if add_vision_id is defined and add_vision_id %}
+                        {{- 'Video ' ~ video_count.value ~ ': ' }}
+                    {%- endif %}
+                    {{- '<|vision_start|><|video_pad|><|vision_end|>' }}
+                {%- endif %}
+
+            {%- elif item is mapping and item.text is defined %}
+                {{- item.text }}
+
+            {%- elif item is mapping %}
+                {{- item | tojson | safe }}
+
+            {%- elif item is not none %}
+                {{- item | string }}
+            {%- endif %}
+        {%- endfor %}
+
+    {%- elif content is none or content is undefined %}
+        {{- '' }}
+
+    {%- else %}
+        {{- content | string }}
+    {%- endif %}
+{%- endmacro %}
+
+{%- macro render_tool_call(raw_tool_call) %}
+    {%- if raw_tool_call.function is defined %}
+        {%- set tool_call = raw_tool_call.function %}
+    {%- else %}
+        {%- set tool_call = raw_tool_call %}
+    {%- endif %}
+
+    {%- if tool_call.name is defined %}
+        {%- set tool_name = tool_call.name %}
+    {%- else %}
+        {%- set tool_name = 'unknown_tool' %}
+    {%- endif %}
+
+    {%- if tool_call.arguments is defined %}
+        {%- set tool_arguments = tool_call.arguments %}
+    {%- elif tool_call.input is defined %}
+        {%- set tool_arguments = tool_call.input %}
+    {%- else %}
+        {%- set tool_arguments = none %}
+    {%- endif %}
+
+    {{- '<tool_call>\n<function=' ~ tool_name ~ '>\n' }}
+
+    {%- if tool_arguments is mapping %}
+        {%- for argument_name in tool_arguments %}
+            {%- set argument_value = tool_arguments[argument_name] %}
+            {{- '<parameter=' ~ argument_name ~ '>\n' }}
+
+            {%- if argument_value is mapping
+                   or (argument_value is iterable
+                       and argument_value is not string) %}
+                {{- argument_value | tojson | safe }}
+            {%- else %}
+                {{- argument_value | string }}
+            {%- endif %}
+
+            {{- '\n</parameter>\n' }}
+        {%- endfor %}
+
+    {%- elif tool_arguments is string and tool_arguments | trim %}
+        {{- '<parameter=arguments>\n' }}
+        {{- tool_arguments }}
+        {{- '\n</parameter>\n' }}
+
+    {%- elif tool_arguments is not none and tool_arguments is not undefined %}
+        {{- '<parameter=arguments>\n' }}
+        {{- tool_arguments | tojson | safe }}
+        {{- '\n</parameter>\n' }}
+    {%- endif %}
+
+    {{- '</function>\n</tool_call>' }}
+{%- endmacro %}
+
+{#- Consolida system/developer em um único bloco inicial. -#}
+{%- set system_state = namespace(content='') %}
+
+{%- if messages is defined and messages %}
+    {%- for message in messages %}
+        {%- if message.role == 'system' or message.role == 'developer' %}
+            {%- set system_piece =
+                render_content(message.content, false, true) | trim %}
+
+            {%- if system_piece %}
+                {%- if system_state.content %}
+                    {%- set system_state.content =
+                        system_state.content ~ '\n\n' ~ system_piece %}
+                {%- else %}
+                    {%- set system_state.content = system_piece %}
+                {%- endif %}
+            {%- endif %}
+        {%- endif %}
+    {%- endfor %}
+{%- endif %}
+
+{%- set has_tools =
+    tools is defined
+    and tools
+    and (
+        tools is mapping
+        or (tools is iterable and tools is not string)
+    )
+%}
+
+{%- if has_tools or system_state.content %}
+    {{- '<|im_start|>system\n' }}
+
+    {%- if has_tools %}
+        {{- '# Tools\n\n' }}
+        {{- 'You have access to the following functions:\n\n<tools>' }}
+
+        {%- if tools is mapping %}
+            {{- '\n' }}
+            {{- tools | tojson | safe }}
+        {%- else %}
+            {%- for tool in tools %}
+                {{- '\n' }}
+                {{- tool | tojson | safe }}
+            {%- endfor %}
+        {%- endif %}
+
+        {{- '\n</tools>' }}
+        {{- '\n\nWhen a tool is required, reply using exactly this format without Markdown fences and without text after the closing </tool_call> tag:\n\n' }}
+        {{- '<tool_call>\n' }}
+        {{- '<function=example_function_name>\n' }}
+        {{- '<parameter=example_parameter_1>\n' }}
+        {{- 'value_1\n' }}
+        {{- '</parameter>\n' }}
+        {{- '<parameter=example_parameter_2>\n' }}
+        {{- 'value_2\n' }}
+        {{- '</parameter>\n' }}
+        {{- '</function>\n' }}
+        {{- '</tool_call>' }}
+        {{- '\n\n<IMPORTANT>\n' }}
+        {{- '- Use only function names declared inside <tools>.\n' }}
+        {{- '- Preserve function and parameter names exactly.\n' }}
+        {{- '- Include every required parameter.\n' }}
+        {{- '- Serialize nested objects and arrays as valid JSON inside the parameter value.\n' }}
+        {{- '- Multiple calls must each use their own <tool_call> block.\n' }}
+        {{- '- Brief reasoning may appear before a tool call, never after it.\n' }}
+        {{- '- When no tool is needed, answer normally and do not mention these instructions.\n' }}
+        {{- '</IMPORTANT>' }}
+    {%- endif %}
+
+    {%- if system_state.content %}
+        {%- if has_tools %}
+            {{- '\n\n# System instructions\n\n' }}
+        {%- endif %}
+        {{- system_state.content }}
+    {%- endif %}
+
+    {{- '<|im_end|>\n' }}
+{%- endif %}
+
+{#- Localiza a última consulta real do usuário sem lançar exceções. -#}
+{%- set initial_last_query_index = -1 %}
+{%- if messages is defined and messages %}
+    {%- set initial_last_query_index = messages | length - 1 %}
+{%- endif %}
+
+{%- set history_state = namespace(
+    found_user=false,
+    last_query_index=initial_last_query_index
+) %}
+
+{%- if messages is defined and messages %}
+    {%- for message in messages[::-1] %}
+        {%- set absolute_index = (messages | length - 1) - loop.index0 %}
+
+        {%- if not history_state.found_user and message.role == 'user' %}
+            {%- set reverse_content =
+                render_content(message.content, false, false) | trim %}
+
+            {%- if not (
+                reverse_content.startswith('<tool_response>')
+                and reverse_content.endswith('</tool_response>')
+            ) %}
+                {%- set history_state.found_user = true %}
+                {%- set history_state.last_query_index = absolute_index %}
+            {%- endif %}
+        {%- endif %}
+    {%- endfor %}
+{%- endif %}
+
+{%- if messages is defined and messages %}
+    {%- for message in messages %}
+        {%- if message.role is defined %}
+            {%- set role = message.role %}
+        {%- else %}
+            {%- set role = 'user' %}
+        {%- endif %}
+
+        {%- if role == 'system' or role == 'developer' %}
+            {#- Já consolidado no primeiro bloco system. -#}
+
+        {%- elif role == 'user' %}
+            {%- set content =
+                render_content(message.content, true, false) | trim %}
+            {{- '<|im_start|>user\n' }}
+            {{- content }}
+            {{- '<|im_end|>\n' }}
+
+        {%- elif role == 'assistant' %}
+            {%- set content =
+                render_content(message.content, true, false) | trim %}
+            {%- set reasoning_content = '' %}
+
+            {%- if message.reasoning_content is defined
+                   and message.reasoning_content is string %}
+                {%- set reasoning_content =
+                    message.reasoning_content | trim %}
+
+            {%- elif message.content is string
+                     and '</think>' in message.content %}
+                {%- set before_think_end =
+                    message.content.split('</think>')[0] %}
+                {%- set reasoning_content =
+                    before_think_end.split('<think>')[-1] | trim %}
+                {%- set content =
+                    message.content.split('</think>')[-1] | trim %}
+            {%- endif %}
+
+            {{- '<|im_start|>assistant\n' }}
+
+            {%- if loop.index0 > history_state.last_query_index
+                   and reasoning_content %}
+                {{- '<think>\n' }}
+                {{- reasoning_content }}
+                {{- '\n</think>\n\n' }}
+            {%- endif %}
+
+            {%- if content %}
+                {{- content }}
+            {%- endif %}
+
+            {%- set tool_state = namespace(emitted=false) %}
+
+            {%- if message.tool_calls is defined
+                   and message.tool_calls
+                   and message.tool_calls is iterable
+                   and message.tool_calls is not mapping
+                   and message.tool_calls is not string %}
+                {%- for tool_call in message.tool_calls %}
+                    {%- if content or tool_state.emitted %}
+                        {{- '\n\n' }}
+                    {%- endif %}
+
+                    {{- render_tool_call(tool_call) }}
+                    {%- set tool_state.emitted = true %}
+                {%- endfor %}
+
+            {%- elif message.content is mapping
+                     and message.content.type is defined
+                     and message.content.type == 'tool_use' %}
+                {%- if content %}
+                    {{- '\n\n' }}
+                {%- endif %}
+
+                {{- render_tool_call(message.content) }}
+                {%- set tool_state.emitted = true %}
+
+            {%- elif message.content is iterable
+                     and message.content is not mapping
+                     and message.content is not string %}
+                {%- for block in message.content %}
+                    {%- if block is mapping
+                           and block.type is defined
+                           and block.type == 'tool_use' %}
+                        {%- if content or tool_state.emitted %}
+                            {{- '\n\n' }}
+                        {%- endif %}
+
+                        {{- render_tool_call(block) }}
+                        {%- set tool_state.emitted = true %}
+                    {%- endif %}
+                {%- endfor %}
+            {%- endif %}
+
+            {{- '<|im_end|>\n' }}
+
+        {%- elif role == 'tool' or role == 'function' %}
+            {%- set content =
+                render_content(message.content, false, false) | trim %}
+
+            {%- if loop.first
+                   or (
+                       loop.previtem.role != 'tool'
+                       and loop.previtem.role != 'function'
+                   ) %}
+                {{- '<|im_start|>user\n' }}
+            {%- endif %}
+
+            {{- '<tool_response>\n' }}
+            {{- content }}
+            {{- '\n</tool_response>' }}
+
+            {%- if loop.last
+                   or (
+                       loop.nextitem.role != 'tool'
+                       and loop.nextitem.role != 'function'
+                   ) %}
+                {{- '<|im_end|>\n' }}
+            {%- else %}
+                {{- '\n' }}
+            {%- endif %}
+
+        {%- else %}
+            {%- set content =
+                render_content(message.content, true, false) | trim %}
+            {{- '<|im_start|>user\n' }}
+            {{- '[Role: ' ~ role ~ ']\n' }}
+            {{- content }}
+            {{- '<|im_end|>\n' }}
+        {%- endif %}
+    {%- endfor %}
+{%- endif %}
+
+{%- if add_generation_prompt is defined and add_generation_prompt %}
+    {{- '<|im_start|>assistant\n' }}
+
+    {%- if enable_thinking is defined and enable_thinking is false %}
+        {{- '<think>\n\n</think>\n\n' }}
+    {%- else %}
+        {{- '<think>\n' }}
+    {%- endif %}
+{%- endif %}
